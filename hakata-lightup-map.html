@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>博多旧市街ライトアップウォーク 2025 デジタルマップ</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&family=Noto+Sans+JP:wght@300;400;500&display=swap');
+
+    :root {
+      --gold: #c9a84c;
+      --gold-light: #e8c97a;
+      --deep: #0d0b14;
+      --panel: #13101e;
+      --surface: #1a1628;
+      --border: rgba(201,168,76,0.25);
+      --text: #f0ead8;
+      --text-muted: #8a7e6a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background: var(--deep);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .header-lantern {
+      font-size: 22px;
+      animation: flicker 3s ease-in-out infinite;
+    }
+    @keyframes flicker {
+      0%,100%{opacity:1} 50%{opacity:.7} 75%{opacity:.9}
+    }
+
+    .header-text h1 {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 13px;
+      color: var(--gold);
+      letter-spacing: 0.15em;
+      line-height: 1.3;
+    }
+    .header-text p {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      margin-top: 1px;
+    }
+
+    /* ── Map container ── */
+    #map {
+      flex: 1;
+      position: relative;
+    }
+
+    /* Placeholder shown before API key is added */
+    #map-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface);
+      gap: 16px;
+      z-index: 5;
+    }
+    #map-placeholder .placeholder-icon { font-size: 48px; opacity: .6; }
+    #map-placeholder h2 {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 16px;
+      color: var(--gold);
+      text-align: center;
+    }
+    #map-placeholder p {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+      max-width: 260px;
+      line-height: 1.8;
+    }
+    #map-placeholder .api-badge {
+      background: rgba(201,168,76,.12);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 11px;
+      color: var(--gold-light);
+      text-align: center;
+      line-height: 1.7;
+    }
+    #map-placeholder code {
+      background: rgba(255,255,255,.08);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 10px;
+    }
+
+    /* Google Map itself */
+    #google-map {
+      width: 100%;
+      height: 100%;
+      display: none; /* shown after API loads */
+    }
+
+    /* ── Bottom Panel ── */
+    .bottom-panel {
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    /* Tab bar */
+    .tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      flex: 1;
+      padding: 8px 4px;
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      border-bottom: 2px solid transparent;
+      transition: all .2s;
+      letter-spacing: .05em;
+    }
+    .tab.active {
+      color: var(--gold);
+      border-bottom-color: var(--gold);
+    }
+    .tab-icon { display: block; font-size: 14px; margin-bottom: 2px; }
+
+    /* Spot list */
+    .spot-list {
+      overflow-y: auto;
+      max-height: 200px;
+    }
+    .spot-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .spot-item:hover { background: rgba(201,168,76,.07); }
+    .spot-icon {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .spot-icon.paid   { background: rgba(201,168,76,.2); }
+    .spot-icon.free   { background: rgba(100,180,120,.2); }
+    .spot-icon.info   { background: rgba(100,150,255,.2); }
+    .spot-icon.toilet { background: rgba(180,100,200,.2); }
+
+    .spot-name {
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 500;
+      flex: 1;
+    }
+    .spot-tag {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      letter-spacing: .05em;
+    }
+    .tag-paid   { background: rgba(201,168,76,.15); color: var(--gold); border: 1px solid rgba(201,168,76,.3); }
+    .tag-free   { background: rgba(100,180,120,.15); color: #7dc99a; border: 1px solid rgba(100,180,120,.3); }
+    .tag-info   { background: rgba(100,150,255,.15); color: #8bb4ff; border: 1px solid rgba(100,150,255,.3); }
+    .tag-toilet { background: rgba(180,100,200,.15); color: #cc88ee; border: 1px solid rgba(180,100,200,.3); }
+
+    .nav-btn {
+      background: none; border: none;
+      font-size: 16px; cursor: pointer;
+      padding: 4px;
+      opacity: .6;
+      transition: opacity .2s;
+    }
+    .nav-btn:hover { opacity: 1; }
+
+    /* ── ルート中バナー ── */
+    #route-banner {
+      position: absolute;
+      top: 10px; left: 50%; transform: translateX(-50%);
+      background: var(--panel);
+      border: 1px solid var(--gold);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 11px;
+      color: var(--gold);
+      display: none;
+      align-items: center;
+      gap: 8px;
+      z-index: 20;
+      white-space: nowrap;
+      box-shadow: 0 2px 12px rgba(201,168,76,.3);
+    }
+    #route-banner.show { display: flex; }
+    #route-banner button {
+      background: rgba(201,168,76,.15);
+      border: 1px solid rgba(201,168,76,.3);
+      color: var(--gold);
+      border-radius: 10px;
+      padding: 2px 8px;
+      font-size: 10px;
+      cursor: pointer;
+      font-family: 'Noto Sans JP', sans-serif;
+    }
+
+    /* ── Current location FAB ── */
+    #locate-btn {
+      position: absolute;
+      bottom: 220px;
+      right: 14px;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: var(--gold);
+      color: var(--deep);
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(201,168,76,.4);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 20;
+      transition: transform .2s, box-shadow .2s;
+    }
+    #locate-btn:hover { transform: scale(1.1); box-shadow: 0 6px 20px rgba(201,168,76,.5); }
+    #locate-btn.tracking {
+      background: #4da6ff;
+      box-shadow: 0 4px 16px rgba(77,166,255,.5);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { box-shadow: 0 4px 16px rgba(77,166,255,.4); }
+      50%      { box-shadow: 0 4px 24px rgba(77,166,255,.8); }
+    }
+
+    /* ── Info popup ── */
+    #info-popup {
+      position: absolute;
+      bottom: 215px;
+      left: 14px; right: 70px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      z-index: 20;
+      display: none;
+    }
+    #info-popup.show { display: block; animation: slideUp .2s ease; }
+    @keyframes slideUp { from{transform:translateY(10px);opacity:0} to{transform:translateY(0);opacity:1} }
+    #info-popup h3 { font-family: 'Noto Serif JP', serif; font-size: 13px; color: var(--gold); margin-bottom: 4px; }
+    #info-popup p  { font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+    .popup-wait {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; margin-top: 5px;
+      padding: 3px 8px; border-radius: 8px;
+    }
+    #info-popup .popup-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .popup-btn {
+      flex: 1; padding: 6px;
+      border-radius: 6px; border: none;
+      font-size: 11px; cursor: pointer;
+      font-family: 'Noto Sans JP', sans-serif;
+      font-weight: 500;
+      transition: opacity .2s;
+      min-width: 80px;
+    }
+    .popup-btn:hover { opacity: .85; }
+    .popup-btn.route  { background: var(--gold); color: var(--deep); }
+    .popup-btn.stamp  { background: rgba(201,168,76,.15); color: var(--gold); border: 1px solid rgba(201,168,76,.3); }
+    .popup-btn.stamp.stamped { background: rgba(201,168,76,.3); }
+    .popup-btn.close  { background: rgba(255,255,255,.08); color: var(--text); }
+
+    /* Legend */
+    .legend {
+      display: flex; gap: 10px; padding: 8px 14px;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--border);
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 10px; color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .legend-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+    }
+    .dot-paid   { background: #c9a84c; }
+    .dot-free   { background: #7dc99a; }
+    .dot-info   { background: #8bb4ff; }
+    .dot-toilet { background: #cc88ee; }
+
+    /* ── おすすめルートパネル ── */
+    .route-panel {
+      padding: 10px 14px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .route-panel.active { display: flex; }
+
+    .route-card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: background .2s, border-color .2s;
+    }
+    .route-card:hover { background: rgba(201,168,76,.08); border-color: rgba(201,168,76,.4); }
+    .route-card.selected { background: rgba(201,168,76,.1); border-color: var(--gold); }
+
+    .route-card-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 5px;
+    }
+    .route-badge {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    }
+    .badge-short { background: #4da6ff; }
+    .badge-full  { background: #c9a84c; }
+
+    .route-card-title {
+      font-size: 12px; font-weight: 500; color: var(--text); flex: 1;
+    }
+    .route-card-meta {
+      font-size: 10px; color: var(--text-muted);
+    }
+    .route-card-spots {
+      font-size: 10px; color: var(--text-muted);
+      line-height: 1.7;
+      padding-left: 18px;
+    }
+    .route-start-btn {
+      width: 100%; margin-top: 6px;
+      padding: 7px;
+      background: var(--gold);
+      color: var(--deep);
+      border: none; border-radius: 6px;
+      font-size: 11px; font-weight: 500;
+      font-family: 'Noto Sans JP', sans-serif;
+      cursor: pointer;
+      transition: opacity .2s;
+      display: none;
+    }
+    .route-card.selected .route-start-btn { display: block; }
+    .route-start-btn:hover { opacity: .85; }
+    /* ── スタンプトラッカー ── */
+    .stamp-panel {
+      padding: 10px 14px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .stamp-panel.active { display: flex; }
+
+    .stamp-header {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .stamp-title {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 12px; color: var(--gold);
+    }
+    .stamp-count {
+      font-size: 11px; color: var(--text-muted);
+    }
+    .stamp-progress-bar {
+      height: 6px; background: rgba(255,255,255,.08);
+      border-radius: 3px; overflow: hidden;
+    }
+    .stamp-progress-fill {
+      height: 100%; background: var(--gold);
+      border-radius: 3px;
+      transition: width .4s ease;
+    }
+    .stamp-message {
+      font-size: 11px; color: var(--text-muted);
+      text-align: center;
+    }
+    .stamp-message.complete { color: var(--gold); font-weight: 500; }
+
+    .stamp-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.04);
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .stamp-item:hover { background: rgba(201,168,76,.07); }
+    .stamp-item.checked { background: rgba(201,168,76,.08); border-color: rgba(201,168,76,.2); }
+
+    .stamp-checkbox {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px;
+      flex-shrink: 0;
+      transition: all .2s;
+    }
+    .stamp-item.checked .stamp-checkbox {
+      background: var(--gold);
+      border-color: var(--gold);
+      color: var(--deep);
+    }
+    .stamp-item-name {
+      font-size: 11px; color: var(--text); flex: 1;
+    }
+    .stamp-item.checked .stamp-item-name {
+      color: var(--gold-light);
+    }
+    .stamp-item-wait {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+    .wait-none  { color: #7dc99a; background: rgba(100,180,120,.12); }
+    .wait-short { color: #e8c97a; background: rgba(232,201,122,.12); }
+    .wait-long  { color: #ff9980; background: rgba(255,120,80,.12); }
+
+    /* ── コンプリート演出 ── */
+    #complete-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(13,11,20,.92);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 30;
+    }
+    #complete-overlay.show { display: flex; animation: fadeIn .3s ease; }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    #complete-overlay .complete-icon { font-size: 56px; animation: bounce .6s ease; }
+    @keyframes bounce { 0%,100%{transform:scale(1)} 50%{transform:scale(1.2)} }
+    #complete-overlay h2 {
+      font-family: 'Noto Serif JP', serif;
+      font-size: 20px; color: var(--gold);
+      text-align: center;
+    }
+    #complete-overlay p {
+      font-size: 12px; color: var(--text-muted);
+      text-align: center;
+    }
+    #complete-overlay button {
+      margin-top: 8px;
+      padding: 8px 24px;
+      background: var(--gold); color: var(--deep);
+      border: none; border-radius: 20px;
+      font-size: 12px; font-weight: 500;
+      font-family: 'Noto Sans JP', sans-serif;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-lantern">🏮</div>
+  <div class="header-text">
+    <h1>博多旧市街ライトアップウォーク 2025</h1>
+    <p>千年煌夜 ｜ 10.31(金)〜11.3(祝)　17:30〜21:00</p>
+  </div>
+</header>
+
+<div id="map">
+
+  <!-- ▼ Google Map が表示される領域 -->
+  <div id="google-map"></div>
+
+  <!-- ▼ APIキー未設定時のプレースホルダー -->
+  <div id="map-placeholder">
+    <div class="placeholder-icon">🗺️</div>
+    <h2>デジタルマップ準備完了</h2>
+    <p>Google Maps APIキーを設定すると<br>現在地とルートが表示されます</p>
+    <div class="api-badge">
+      ① <a href="https://console.cloud.google.com/" target="_blank" style="color:var(--gold-light)">Google Cloud Console</a> でAPIキー取得<br>
+      ② このHTMLファイルの下記を書き換え：<br>
+      <code>YOUR_API_KEY_HERE</code> → 取得したキー<br>
+      ③ Maps JavaScript API・Geolocation API を有効化
+    </div>
+  </div>
+
+  <!-- ルート案内中バナー -->
+  <div id="route-banner">
+    <span id="route-banner-text">🧭 ルート表示中</span>
+    <button onclick="clearRoute()">✕ クリア</button>
+  </div>
+
+  <!-- 現在地ボタン -->
+  <button id="locate-btn" title="現在地を表示" onclick="locateMe()">📍</button>
+
+  <!-- スポット情報ポップアップ -->
+  <div id="info-popup">
+    <h3 id="popup-name"></h3>
+    <p id="popup-desc"></p>
+    <div id="popup-wait-wrap"></div>
+    <div class="popup-actions">
+      <button class="popup-btn route" onclick="openRoute()">🧭 ルートを表示</button>
+      <button class="popup-btn stamp" id="popup-stamp-btn" onclick="toggleStamp()" style="display:none">📍 訪問済みにする</button>
+      <button class="popup-btn close" onclick="closePopup()">✕ 閉じる</button>
+    </div>
+  </div>
+
+  <!-- コンプリート演出 -->
+  <div id="complete-overlay">
+    <div class="complete-icon">🏮</div>
+    <h2>スタンプコンプリート！</h2>
+    <p>全10か所を制覇しました！<br>手ぬぐいの引換をお忘れなく🎉</p>
+    <button onclick="document.getElementById('complete-overlay').classList.remove('show')">閉じる</button>
+  </div>
+
+</div>
+
+<!-- ── Bottom Panel ── -->
+<div class="bottom-panel">
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot dot-paid"></div>有料会場</div>
+    <div class="legend-item"><div class="legend-dot dot-free"></div>無料会場</div>
+    <div class="legend-item"><div class="legend-dot dot-info"></div>総合案内所</div>
+    <div class="legend-item"><div class="legend-dot dot-toilet"></div>トイレ・休憩</div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('venues')">
+      <span class="tab-icon">⛩️</span>会場
+    </button>
+    <button class="tab" onclick="switchTab('info')">
+      <span class="tab-icon">ℹ️</span>案内所
+    </button>
+    <button class="tab" onclick="switchTab('toilet')">
+      <span class="tab-icon">🚻</span>休憩所
+    </button>
+    <button class="tab" onclick="switchTab('route')">
+      <span class="tab-icon">🗺️</span>ルート
+    </button>
+    <button class="tab" onclick="switchTab('stamp')">
+      <span class="tab-icon">📍</span>スタンプ
+    </button>
+  </div>
+
+  <div class="spot-list" id="spot-list"></div>
+
+  <div class="route-panel" id="route-panel">
+    <div class="route-card" id="card-short" onclick="selectRoute('short')">
+      <div class="route-card-header">
+        <div class="route-badge badge-short"></div>
+        <span class="route-card-title">🕐 ショートコース</span>
+        <span class="route-card-meta">約60分 ／ 4スポット</span>
+      </div>
+      <div class="route-card-spots">
+        博多千年門 → 承天寺 → 東長寺 → 櫛田神社
+      </div>
+      <button class="route-start-btn" onclick="startRecommendedRoute('short', event)">🧭 このルートを地図に表示</button>
+    </div>
+    <div class="route-card" id="card-full" onclick="selectRoute('full')">
+      <div class="route-card-header">
+        <div class="route-badge badge-full"></div>
+        <span class="route-card-title">🏮 じっくりコース</span>
+        <span class="route-card-meta">約120分 ／ 8スポット</span>
+      </div>
+      <div class="route-card-spots">
+        博多千年門 → 承天寺 → 東長寺 → 妙楽寺 → 永寿院 → 円覚寺 → 龍宮寺 → 櫛田神社
+      </div>
+      <button class="route-start-btn" onclick="startRecommendedRoute('full', event)">🧭 このルートを地図に表示</button>
+    </div>
+  </div>
+
+  <div class="stamp-panel" id="stamp-panel"></div>
+</div>
+
+<!-- Google Maps API（APIキーをここに入れる） -->
+<script>
+// ================================================================
+//  スポットデータ（会場・案内所・トイレ）
+// ================================================================
+const spots = [
+  // ── 有料会場 ──
+  { id:1,  type:'paid',   name:'承天寺（方丈・開山堂）', desc:'博多旧市街を代表する禅寺。方丈と開山堂が幻想的にライトアップ。',         lat:33.5901, lng:130.4128 },
+  { id:2,  type:'paid',   name:'東長寺',                  desc:'福岡大仏（木造坐像日本一）を擁する名刹。境内全体が光に包まれる。',     lat:33.5913, lng:130.4133 },
+  { id:3,  type:'paid',   name:'妙楽寺',                  desc:'静かな境内に映える繊細なライティング演出。',                             lat:33.5898, lng:130.4140 },
+  { id:4,  type:'paid',   name:'永寿院',                  desc:'創建当時の本堂と庭園が現存する貴重な寺院。',                             lat:33.5894, lng:130.4147 },
+  { id:5,  type:'paid',   name:'円覚寺',                  desc:'鎌倉時代創建の禅寺。落ち着いた境内に幽玄な光が広がる。',               lat:33.5910, lng:130.4153 },
+  { id:6,  type:'paid',   name:'龍宮寺',                  desc:'人魚の伝説が残る不思議な寺。ライトアップで神秘感倍増。',               lat:33.5880, lng:130.4110 },
+  { id:7,  type:'paid',   name:'本岳寺',                  desc:'静寂な境内を彩る幻想的な光の演出。',                                   lat:33.5905, lng:130.4160 },
+  { id:8,  type:'paid',   name:'善導寺',                  desc:'浄土宗の名刹。境内を包むやわらかなライティング。',                     lat:33.5888, lng:130.4135 },
+  { id:9,  type:'paid',   name:'妙典寺',                  desc:'歴史ある境内が光のアートで蘇る。',                                     lat:33.5875, lng:130.4145 },
+  { id:10, type:'paid',   name:'海元寺',                  desc:'呉服町エリア。岩崎電気によるライトアップ演出。',                       lat:33.5868, lng:130.4168 },
+  // ── 無料会場 ──
+  { id:11, type:'free',   name:'承天寺（仏殿）',          desc:'無料エリア。仏殿の荘厳な雰囲気を無料で体験。',                         lat:33.5903, lng:130.4125 },
+  { id:12, type:'free',   name:'櫛田神社（賑わい広場）', desc:'博多の総鎮守。ジャズライブ・キッチンカーも開催。',                     lat:33.5871, lng:130.4108 },
+  { id:13, type:'free',   name:'一行寺',                  desc:'静かな境内を自由に散策できる無料スポット。',                           lat:33.5920, lng:130.4118 },
+  { id:14, type:'free',   name:'博多千年門',              desc:'博多旧市街の入口。期間限定サインタワーが出現。フォトスポット。',       lat:33.5930, lng:130.4122 },
+  { id:15, type:'free',   name:'葛城地蔵尊',              desc:'地域に親しまれる地蔵尊。やわらかな光に包まれる。',                     lat:33.5895, lng:130.4155 },
+  // ── 総合案内所 ──
+  { id:16, type:'info',   name:'総合案内所（東長寺横）',  desc:'グッズ販売・スタンプ引換所。当日券もこちらで。',                       lat:33.5916, lng:130.4130 },
+  { id:17, type:'info',   name:'総合案内所（博多千年門）',desc:'博多千年門そばの案内所。グッズ・スタンプ対応。',                      lat:33.5932, lng:130.4120 },
+  { id:18, type:'info',   name:'総合案内所（櫛田神社）',  desc:'賑わい広場内。チケット・グッズの受取可能。',                           lat:33.5869, lng:130.4106 },
+  { id:19, type:'info',   name:'総合案内所（呉服町ビル）',desc:'呉服町ビジネスセンタービル内の案内所。',                               lat:33.5865, lng:130.4172 },
+  // ── トイレ・休憩 ──
+  { id:20, type:'toilet', name:'トイレ（承天寺通り）',    desc:'承天寺通り沿いの公衆トイレ。',                                         lat:33.5907, lng:130.4123 },
+  { id:21, type:'toilet', name:'トイレ（御供所公園）',    desc:'御供所公園内トイレ。',                                                 lat:33.5892, lng:130.4142 },
+  { id:22, type:'toilet', name:'休憩所（承天寺夜市）',    desc:'承天寺夜市で椅子席あり。散策の合間の休憩に。',                         lat:33.5899, lng:130.4130 },
+];
+
+// ── 待ち時間データ（スタッフが更新する部分）──
+// 値: 0=待ちなし, 1=~10分, 2=~20分, 3=30分以上, -1=情報なし
+const waitTimes = {
+  1: -1, 2: -1, 3: -1, 4: -1, 5: -1,
+  6: -1, 7: -1, 8: -1, 9: -1, 10: -1,
+};
+
+function getWaitLabel(id) {
+  const v = waitTimes[id];
+  if (v === -1 || v === undefined) return null;
+  if (v === 0) return { text: '待ちなし', cls: 'wait-none' };
+  if (v === 1) return { text: '約10分待ち', cls: 'wait-short' };
+  if (v === 2) return { text: '約20分待ち', cls: 'wait-short' };
+  return { text: '30分以上', cls: 'wait-long' };
+}
+
+// ── スタンプデータ（localStorage保存）──
+const STAMP_KEY = 'hakata_luw_stamps';
+function loadStamps() {
+  try { return JSON.parse(localStorage.getItem(STAMP_KEY)) || []; } catch { return []; }
+}
+function saveStamps(arr) {
+  try { localStorage.setItem(STAMP_KEY, JSON.stringify(arr)); } catch {}
+}
+let checkedStamps = loadStamps();
+
+function toggleStamp() {
+  if (!currentSpot || currentSpot.type !== 'paid') return;
+  const id = currentSpot.id;
+  const idx = checkedStamps.indexOf(id);
+  if (idx === -1) {
+    checkedStamps.push(id);
+  } else {
+    checkedStamps.splice(idx, 1);
+  }
+  saveStamps(checkedStamps);
+  updateStampBtn();
+  renderStampPanel();
+  updateMarkerVisited(id);
+  // コンプリートチェック
+  const paidIds = spots.filter(s => s.type === 'paid').map(s => s.id);
+  if (paidIds.every(id => checkedStamps.includes(id))) {
+    setTimeout(() => document.getElementById('complete-overlay').classList.add('show'), 300);
+  }
+}
+
+function updateStampBtn() {
+  if (!currentSpot || currentSpot.type !== 'paid') return;
+  const btn = document.getElementById('popup-stamp-btn');
+  const checked = checkedStamps.includes(currentSpot.id);
+  btn.textContent = checked ? '✅ 訪問済み' : '📍 訪問済みにする';
+  btn.classList.toggle('stamped', checked);
+}
+
+function updateMarkerVisited(spotId) {
+  // 訪問済みマーカーを半透明に
+  const spot = spots.find(s => s.id === spotId);
+  if (!spot) return;
+  const markerIdx = spots.indexOf(spot);
+  if (markers[markerIdx]) {
+    markers[markerIdx].setOpacity(checkedStamps.includes(spotId) ? 0.4 : 1.0);
+  }
+}
+
+function renderStampPanel() {
+  const panel = document.getElementById('stamp-panel');
+  if (!panel) return;
+  const paidSpots = spots.filter(s => s.type === 'paid');
+  const total = paidSpots.length;
+  const done = checkedStamps.filter(id => paidSpots.some(s => s.id === id)).length;
+  const pct = Math.round((done / total) * 100);
+
+  let msg = '';
+  if (done === 0) msg = 'スタンプを集めよう！';
+  else if (done === total) msg = '🎉 全10か所コンプリート！手ぬぐいを受け取ろう！';
+  else msg = `あと${total - done}か所でコンプリート！`;
+
+  let html = `
+    <div class="stamp-header">
+      <span class="stamp-title">📍 スタンプ進捗</span>
+      <span class="stamp-count">${done} / ${total}</span>
+    </div>
+    <div class="stamp-progress-bar">
+      <div class="stamp-progress-fill" style="width:${pct}%"></div>
+    </div>
+    <div class="stamp-message ${done === total ? 'complete' : ''}">${msg}</div>
+  `;
+
+  paidSpots.forEach(spot => {
+    const checked = checkedStamps.includes(spot.id);
+    const wait = getWaitLabel(spot.id);
+    const waitHtml = wait ? `<span class="stamp-item-wait ${wait.cls}">⏱ ${wait.text}</span>` : '';
+    html += `
+      <div class="stamp-item ${checked ? 'checked' : ''}" onclick="toggleStampById(${spot.id})">
+        <div class="stamp-checkbox">${checked ? '✓' : ''}</div>
+        <span class="stamp-item-name">${spot.name}</span>
+        ${waitHtml}
+      </div>
+    `;
+  });
+
+  panel.innerHTML = html;
+}
+
+function toggleStampById(id) {
+  const idx = checkedStamps.indexOf(id);
+  if (idx === -1) checkedStamps.push(id);
+  else checkedStamps.splice(idx, 1);
+  saveStamps(checkedStamps);
+  renderStampPanel();
+  updateMarkerVisited(id);
+  const paidIds = spots.filter(s => s.type === 'paid').map(s => s.id);
+  if (paidIds.every(id => checkedStamps.includes(id))) {
+    setTimeout(() => document.getElementById('complete-overlay').classList.add('show'), 300);
+  }
+}
+
+const typeConfig = {
+  paid:   { icon:'⛩️', label:'有料会場', tagClass:'tag-paid',   iconClass:'paid'   },
+  free:   { icon:'🌿', label:'無料会場', tagClass:'tag-free',   iconClass:'free'   },
+  info:   { icon:'ℹ️',  label:'総合案内所', tagClass:'tag-info', iconClass:'info'   },
+  toilet: { icon:'🚻', label:'トイレ・休憩', tagClass:'tag-toilet', iconClass:'toilet' },
+};
+
+let map, markers = [], userMarker = null, currentSpot = null, directionsRenderer = null, directionsService = null;
+
+// ── おすすめルートデータ ──
+const recommendedRoutes = {
+  short: {
+    label: 'ショートコース',
+    color: '#4da6ff',
+    waypoints: [
+      { lat:33.5930, lng:130.4122 }, // 博多千年門
+      { lat:33.5901, lng:130.4128 }, // 承天寺
+      { lat:33.5913, lng:130.4133 }, // 東長寺
+    ],
+    destination: { lat:33.5871, lng:130.4108 }, // 櫛田神社
+  },
+  full: {
+    label: 'じっくりコース',
+    color: '#c9a84c',
+    waypoints: [
+      { lat:33.5930, lng:130.4122 }, // 博多千年門
+      { lat:33.5901, lng:130.4128 }, // 承天寺
+      { lat:33.5913, lng:130.4133 }, // 東長寺
+      { lat:33.5898, lng:130.4140 }, // 妙楽寺
+      { lat:33.5894, lng:130.4147 }, // 永寿院
+      { lat:33.5910, lng:130.4153 }, // 円覚寺
+      { lat:33.5880, lng:130.4110 }, // 龍宮寺
+    ],
+    destination: { lat:33.5871, lng:130.4108 }, // 櫛田神社
+  },
+};
+
+let selectedRouteKey = null;
+let recommendedRenderer = null;
+
+function selectRoute(key) {
+  selectedRouteKey = key;
+  document.querySelectorAll('.route-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('card-' + key).classList.add('selected');
+}
+
+function startRecommendedRoute(key, e) {
+  e.stopPropagation();
+  const route = recommendedRoutes[key];
+  if (!route) return;
+
+  // 既存のおすすめルートレンダラーをリセット
+  if (recommendedRenderer) {
+    recommendedRenderer.setMap(null);
+    recommendedRenderer = null;
+  }
+
+  recommendedRenderer = new google.maps.DirectionsRenderer({
+    map,
+    polylineOptions: {
+      strokeColor: route.color,
+      strokeWeight: 5,
+      strokeOpacity: 0.9,
+    },
+    suppressMarkers: false,
+  });
+
+  const waypts = route.waypoints.slice(1).map(p => ({ location: p, stopover: true }));
+
+  directionsService.route({
+    origin: route.waypoints[0],
+    destination: route.destination,
+    waypoints: waypts,
+    travelMode: google.maps.TravelMode.WALKING,
+    optimizeWaypoints: false,
+  }, (result, status) => {
+    if (status === 'OK') {
+      recommendedRenderer.setDirections(result);
+      const banner = document.getElementById('route-banner');
+      document.getElementById('route-banner-text').textContent = '🗺️ ' + route.label + ' 表示中';
+      banner.classList.add('show');
+      // マップを全体表示に移動
+      map.panTo({ lat: 33.5897, lng: 130.4138 });
+      map.setZoom(16);
+    } else {
+      alert('ルートを取得できませんでした。しばらくしてから再度お試しください。');
+    }
+  });
+}
+
+// ── スポットリスト描画 ──
+function renderList(filter) {
+  const list = document.getElementById('spot-list');
+  list.innerHTML = '';
+  const filtered = spots.filter(s => filter === 'all' || s.type === filter);
+  filtered.forEach(spot => {
+    const cfg = typeConfig[spot.type];
+    const item = document.createElement('div');
+    item.className = 'spot-item';
+    item.innerHTML = `
+      <div class="spot-icon ${cfg.iconClass}">${cfg.icon}</div>
+      <span class="spot-name">${spot.name}</span>
+      <span class="spot-tag ${cfg.tagClass}">${cfg.label}</span>
+      <button class="nav-btn" title="マップで表示">›</button>
+    `;
+    item.onclick = () => showSpot(spot);
+    list.appendChild(item);
+  });
+}
+
+// ── タブ切替 ──
+const tabFilters = { venues: ['paid','free'], info: ['info'], toilet: ['toilet'] };
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    t.classList.toggle('active', ['venues','info','toilet','route','stamp'][i] === tab);
+  });
+  const list = document.getElementById('spot-list');
+  const routePanel = document.getElementById('route-panel');
+
+  const stampPanel = document.getElementById('stamp-panel');
+
+  if (tab === 'route') {
+    list.style.display = 'none';
+    routePanel.classList.add('active');
+    stampPanel.classList.remove('active');
+    return;
+  }
+
+  if (tab === 'stamp') {
+    list.style.display = 'none';
+    routePanel.classList.remove('active');
+    stampPanel.classList.add('active');
+    renderStampPanel();
+    return;
+  }
+
+  list.style.display = '';
+  routePanel.classList.remove('active');
+  stampPanel.classList.remove('active');
+  list.innerHTML = '';
+  const types = tabFilters[tab];
+  const filtered = spots.filter(s => types.includes(s.type));
+  filtered.forEach(spot => {
+    const cfg = typeConfig[spot.type];
+    const item = document.createElement('div');
+    item.className = 'spot-item';
+    item.innerHTML = `
+      <div class="spot-icon ${cfg.iconClass}">${cfg.icon}</div>
+      <span class="spot-name">${spot.name}</span>
+      <span class="spot-tag ${cfg.tagClass}">${cfg.label}</span>
+      <button class="nav-btn" title="マップで表示">›</button>
+    `;
+    item.onclick = () => showSpot(spot);
+    list.appendChild(item);
+  });
+}
+
+// ── スポット選択 ──
+function showSpot(spot) {
+  currentSpot = spot;
+  document.getElementById('popup-name').textContent = spot.name;
+  document.getElementById('popup-desc').textContent = spot.desc;
+
+  // 待ち時間表示
+  const waitWrap = document.getElementById('popup-wait-wrap');
+  if (spot.type === 'paid') {
+    const wait = getWaitLabel(spot.id);
+    if (wait) {
+      waitWrap.innerHTML = `<span class="popup-wait ${wait.cls}">⏱ ${wait.text}</span>`;
+    } else {
+      waitWrap.innerHTML = `<span class="popup-wait" style="color:var(--text-muted);font-size:10px">⏱ 待ち時間：情報なし</span>`;
+    }
+  } else {
+    waitWrap.innerHTML = '';
+  }
+
+  // スタンプボタン（有料会場のみ表示）
+  const stampBtn = document.getElementById('popup-stamp-btn');
+  if (spot.type === 'paid') {
+    stampBtn.style.display = '';
+    updateStampBtn();
+  } else {
+    stampBtn.style.display = 'none';
+  }
+
+  document.getElementById('info-popup').classList.add('show');
+  if (map) map.panTo({ lat: spot.lat, lng: spot.lng });
+}
+
+function closePopup() {
+  document.getElementById('info-popup').classList.remove('show');
+}
+
+// ── ルート表示（Directions API） ──
+function openRoute() {
+  if (!currentSpot) return;
+  if (!navigator.geolocation) { alert('位置情報が利用できません'); return; }
+
+  navigator.geolocation.getCurrentPosition(pos => {
+    const origin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    const destination = { lat: currentSpot.lat, lng: currentSpot.lng };
+
+    directionsService.route({
+      origin,
+      destination,
+      travelMode: google.maps.TravelMode.WALKING,
+    }, (result, status) => {
+      if (status === 'OK') {
+        directionsRenderer.setDirections(result);
+        const banner = document.getElementById('route-banner');
+        document.getElementById('route-banner-text').textContent = `🧭 ${currentSpot.name} へのルート`;
+        banner.classList.add('show');
+        closePopup();
+      } else {
+        alert('ルートを取得できませんでした。現在地の位置情報を確認してください。');
+      }
+    });
+  }, () => { alert('現在地を取得できませんでした。\nブラウザの位置情報を許可してください。'); });
+}
+
+// ── ルートクリア ──
+function clearRoute() {
+  if (directionsRenderer) directionsRenderer.setDirections({ routes: [] });
+  if (recommendedRenderer) { recommendedRenderer.setMap(null); recommendedRenderer = null; }
+  document.getElementById('route-banner').classList.remove('show');
+  document.querySelectorAll('.route-card').forEach(c => c.classList.remove('selected'));
+  selectedRouteKey = null;
+}
+
+// ── 現在地取得 ──
+function locateMe() {
+  if (!navigator.geolocation) { alert('位置情報が利用できません'); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    const latlng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    if (!map) return;
+    if (userMarker) userMarker.setMap(null);
+    userMarker = new google.maps.Marker({
+      position: latlng,
+      map,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 8,
+        fillColor: '#4da6ff',
+        fillOpacity: 1,
+        strokeColor: '#fff',
+        strokeWeight: 2,
+      },
+      title: '現在地',
+    });
+    map.panTo(latlng);
+    map.setZoom(16);
+  }, () => { alert('現在地を取得できませんでした。\nブラウザの位置情報を許可してください。'); });
+}
+
+// ── Google Maps 初期化 ──
+function initMap() {
+  // プレースホルダーを非表示にしてマップを表示
+  document.getElementById('map-placeholder').style.display = 'none';
+  document.getElementById('google-map').style.display = 'block';
+
+  map = new google.maps.Map(document.getElementById('google-map'), {
+    center: { lat: 33.5897, lng: 130.4138 },
+    zoom: 16,
+    styles: [
+      { elementType:'geometry', stylers:[{color:'#1a1628'}] },
+      { elementType:'labels.text.fill', stylers:[{color:'#9e8e6a'}] },
+      { elementType:'labels.text.stroke', stylers:[{color:'#1a1628'}] },
+      { featureType:'road', elementType:'geometry', stylers:[{color:'#2a2240'}] },
+      { featureType:'road', elementType:'labels.text.fill', stylers:[{color:'#6b5f8a'}] },
+      { featureType:'water', elementType:'geometry', stylers:[{color:'#0d1b2a'}] },
+      { featureType:'poi.park', elementType:'geometry', stylers:[{color:'#1a2a1a'}] },
+      { featureType:'transit', elementType:'geometry', stylers:[{color:'#231f35'}] },
+    ],
+    disableDefaultUI: false,
+    zoomControl: true,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: false,
+  });
+
+  // Directions API 初期化
+  directionsService = new google.maps.DirectionsService();
+  directionsRenderer = new google.maps.DirectionsRenderer({
+    map,
+    polylineOptions: {
+      strokeColor: '#c9a84c',
+      strokeWeight: 5,
+      strokeOpacity: 0.85,
+    },
+    suppressMarkers: false,
+  });
+
+  // マーカーを配置
+  spots.forEach(spot => {
+    const cfg = typeConfig[spot.type];
+    const marker = new google.maps.Marker({
+      position: { lat: spot.lat, lng: spot.lng },
+      map,
+      title: spot.name,
+      label: {
+        text: cfg.icon,
+        fontSize: '16px',
+      },
+    });
+    marker.addListener('click', () => showSpot(spot));
+    markers.push(marker);
+    // 訪問済みなら半透明に
+    if (checkedStamps.includes(spot.id)) marker.setOpacity(0.4);
+  });
+}
+
+// 初期リスト描画
+renderList('all');
+switchTab('venues');
+</script>
+
+<!--
+  ▼▼▼ Google Maps APIキーをここに設定してください ▼▼▼
+  手順:
+  1. https://console.cloud.google.com/ にアクセス
+  2. 新規プロジェクト作成（または既存を選択）
+  3. 「Maps JavaScript API」「Geolocation API」を有効化
+  4. 認証情報 → APIキーを作成
+  5. 下記 YOUR_API_KEY_HERE をそのキーに置き換える
+  6. 本番公開時はHTTPリファラー制限を設定すること（セキュリティ対策）
+-->
+<script async defer
+  src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE&callback=initMap&language=ja">
+</script>
+
+</body>
+</html>
